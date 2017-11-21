@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import socket
 
 try:  # sherlock 1 or 2
     sherlock = os.environ['SHERLOCK']
@@ -129,6 +130,10 @@ def main(
                         'publisher': publisher,
                         'doi': doi
                         }
+
+    publication_dict['host'] = socket.getfqdn()
+    publication_dict['path'] = os.path.abspath('.')
+
 
     pub_txt = publication_base + 'publication.txt'
     json.dump(publication_dict, open(pub_txt, 'wb'))

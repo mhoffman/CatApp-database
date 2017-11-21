@@ -5,6 +5,12 @@ Install with pip using
     pip install --user --upgrade git+https://github.com/mhoffman/CatApp-database.git
 
 
+Run 
+
+    eval "$(_CATAPP_COMPLETE=source catapp)"
+
+for bash completion.
+
 ## Usage
 
 Run `catapp`, like so

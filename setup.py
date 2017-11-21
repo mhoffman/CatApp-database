@@ -11,5 +11,5 @@ setup(name='catapp',
             [console_scripts]
             catapp=catapp:cli
         ''',
-      long_description=file('README.md').read(),
+      long_description=open('README.md').read(),
     )

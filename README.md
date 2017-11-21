@@ -9,7 +9,7 @@ Run
 
     eval "$(_CATAPP_COMPLETE=source catapp)"
 
-for bash completion.
+for bash completion or better, yet, put in in your `~/.bashrc`.
 
 ## Usage
 

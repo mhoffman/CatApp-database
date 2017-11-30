@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mhoffman/CatAppCLI.svg?branch=master)](https://travis-ci.org/mhoffman/CatAppCLI)
+
 ## Installation
 
 Install with pip using

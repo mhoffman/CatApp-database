@@ -67,7 +67,7 @@ class CatappPostgreSQL:
         self._initialize(con)
         cur = con.cursor()
         cur.execute("SELECT COUNT(*) from catapp;")
-        print cur.fetchall()
+        print(cur.fetchall())
         #cur.execute("""SELECT reactants, products FROM catapp where reference""")
         #print len(cur.fetchall())
  
@@ -93,10 +93,10 @@ class CatappPostgreSQL:
             else:
                 value_str += ", {}".format(v)
         insert_command = 'INSERT INTO catapp ({}) VALUES ({}) RETURNING id;'.format(key_str, value_str)
-        print insert_command
+        print(insert_command)
         cur.execute(insert_command)
         id = cur.fetchone()[0]
-        print id
+        print(id)
         if self.connection is None:
             con.commit()
             con.close()
@@ -115,10 +115,10 @@ class CatappPostgreSQL:
                 values = row[0]
                 id = self.check(values[7])
                 if id is not None:
-                    print 'Allready in catapp db with row id = {}'.format(id)
+                    print('Allready in catapp db with row id = {}'.format(id))
                 else:
                     id = self.write(values)
-                    print 'Written to catapp db row id = {}'.format(id)
+                    print('Written to catapp db row id = {}'.format(id))
 
     
     def check(self, reaction_energy):

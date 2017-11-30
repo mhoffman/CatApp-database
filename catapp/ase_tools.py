@@ -25,15 +25,15 @@ def check_traj(filename, strict=True, verbose=True):
     try:
         atoms = read_ase(filename)
         if verbose:
-            print 'traj file ok!'
+            print('traj file ok!')
     except:
         try:
             convert(filename)
             if verbose:
-                print 'Converting to new ase format!'
+                print('Converting to new ase format!')
             atoms = read_ase(filename)
         except:
-            print 'Could not read .traj file'
+            print('Could not read .traj file')
             return False
 
     try:
@@ -358,7 +358,7 @@ def check_in_ase(filename, ase_db, energy=None):
             n += 1
             ids.append(row.id)
     if n > 0:
-        print '{} already in ASE database'.format(formula)
+        print('{} already in ASE database'.format(formula))
         id = ids[0]
         unique_id = db_ase.get(id)['unique_id']
         return unique_id
@@ -373,7 +373,7 @@ def write_ase(filename, db_file, **key_value_pairs):
     atoms = tag_atoms(atoms)
     db_ase = ase.db.connect(db_file)
     id = db_ase.write(atoms, **key_value_pairs)
-    print 'writing atoms to ASE db row id = {}'.format(id)
+    print('writing atoms to ASE db row id = {}'.format(id))
     unique_id = db_ase.get(id)['unique_id']
     return unique_id
 

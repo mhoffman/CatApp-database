@@ -4,16 +4,9 @@ import ase
 from ase import *
 from sys import argv
 from ase.io import read, write
-from ase.db.row import AtomsRow
-from ase.io.jsonio import encode
-from ase.io.trajectory import convert
-from ase.visualize import view
-import json
-import csv
-import six
-
 
 def read_ase(filename):
+    import six
     if isinstance(filename, six.string_types):
         atoms = read(filename)
     else:
@@ -22,10 +15,12 @@ def read_ase(filename):
 
 
 def check_traj(filename, strict=True, verbose=True):
+    from ase.io.trajectory import convert
+    import math
     try:
         atoms = read_ase(filename)
         if verbose:
-            print('traj file ok!')
+            print('traj file read!')
     except:
         try:
             convert(filename)
@@ -33,18 +28,19 @@ def check_traj(filename, strict=True, verbose=True):
                 print('Converting to new ase format!')
             atoms = read_ase(filename)
         except:
-            print('Could not read .traj file')
+            print('Could not read traj file: {}'.format(filename))
             return False
 
     try:
         atoms.get_potential_energy()
+        assert not math.isnan(atoms.get_potential_energy()), 'Energy is NaN!'
     except:
         if strict:
-            raise RuntimeError, 'No energy for .traj file: {}'.format(filename)
+            raise RuntimeError('No energy for .traj file: {}'.format(filename))
         else:
+            print('No energy for .traj file: {}'.format(filename))
             return False
     return True
-
 
 def get_reference(filename):
     atoms = read_ase(filename)
@@ -52,8 +48,14 @@ def get_reference(filename):
     name = atoms.get_chemical_formula()
     return {name: str(energy)}
 
+def get_pbc(filename):
+    atoms = read_ase(filename)
+    return atoms.get_pbc()
+
 
 def get_traj_str(filename):
+    from ase.db.row import AtomsRow
+    from ase.io.jsonio import encode
     atoms = read_ase(filename)
     row = AtomsRow(atoms)
     dct = {}
@@ -181,28 +183,63 @@ def get_state(name):
     return state
 
 
-def get_reaction_energy(traj_files, prefactors, prefactors_TS):
+def get_reaction_energy(traj_files, reaction, reaction_atoms, states, 
+                        prefactors, prefactors_TS, energy_corrections):
+
     energies = {}
     for key in traj_files.keys():
         energies.update({key: ['' for n in range(len(traj_files[key]))]})
     for key, trajlist in traj_files.iteritems():
-        for i, traj in enumerate(trajlist):
-            energies[key][i] = prefactors[key][i] * get_energy(traj)
+        for i, traj in enumerate(trajlist):            
+            try:
+                trajname =  clear_prefactor(reaction[key][i])
+            except:
+                trajname = None
+            if trajname in energy_corrections.keys():
+                Ecor = energy_corrections[trajname]
+            else:
+                Ecor = 0
+            energies[key][i] = prefactors[key][i] * (get_energy(traj) + Ecor)
 
+    # Reaction energy:        
     energy_reactants = np.sum(energies['reactants'])
     energy_products = np.sum(energies['products'])
 
     reaction_energy = energy_products - energy_reactants
 
+    # Activation energy
     if 'TS' in traj_files.keys():
+        # Is a different empty surface used for the TS? 
+        if 'TSempty' in traj_files.keys():
+            for key in reaction_atoms.keys():
+                if '' in  reaction_atoms[key]:
+                    index = reaction_atoms[key].index('')
+                    traj_empty = traj_files[key][index]
+            traj_tsempty =  traj_files['TSempty'][0]
+            # print(traj_tsempty, traj_empty)
+            tsemptydiff = get_energy(traj_tsempty) - get_energy(traj_empty)
+        
         for i, traj in enumerate(traj_files['reactants']):
-            energies['reactants'][i] = prefactors_TS[
-                'reactants'][i] * get_energy(traj)
+            try:
+                trajname =  clear_prefactor(reaction['reactants'][i])
+            except:
+                trajname = None
+            if trajname in energy_corrections.keys():
+                Ecor = energy_corrections[trajname]
+            else:
+                Ecor = 0
+            energies['reactants'][i] = prefactors_TS['reactants'][i]\
+                * (get_energy(traj) + Ecor)
+            if 'TSempty' in traj_files.keys() and \
+                    states['reactants'][i] == 'star':
+                energies['reactants'][i] += prefactors_TS['reactants'][i]\
+                    * tsemptydiff     
         energy_reactants = np.sum(energies['reactants'])
         energy_TS = energies['TS'][0]
         activation_energy = energy_TS - energy_reactants
     else:
         activation_energy = None
+
     return reaction_energy, activation_energy
 
 
@@ -361,22 +398,32 @@ def check_in_ase(filename, ase_db, energy=None):
         print('{} already in ASE database'.format(formula))
         id = ids[0]
         unique_id = db_ase.get(id)['unique_id']
-        return unique_id
+        return id, unique_id
     else:
-        return None
+        return None, None
 
 
-def write_ase(filename, db_file, **key_value_pairs):
+def write_ase(filename, db_file, user=None, data=None, **key_value_pairs):
     """ Connect to ASE db"""
     atoms = read_ase(filename)
-
     atoms = tag_atoms(atoms)
     db_ase = ase.db.connect(db_file)
+<<<<<<< HEAD:catapp/ase_tools.py
     id = db_ase.write(atoms, **key_value_pairs)
+=======
+    #db_ase.user = user
+    id = db_ase.write(atoms, data=data, **key_value_pairs)
+>>>>>>> kirsten.master:cathub/ase_tools.py
     print('writing atoms to ASE db row id = {}'.format(id))
     unique_id = db_ase.get(id)['unique_id']
     return unique_id
 
+def update_ase(db_file, id,  **key_value_pairs):
+    """ Connect to ASE db"""
+    db_ase = ase.db.connect(db_file)
+    count = db_ase.update(id, **key_value_pairs)
+    print('Updating {} key value pairs in ASE db row id = {}'.format(count, id))
+    return
 
 def get_reaction_from_folder(folder_name):
     reaction = {}
@@ -400,7 +447,23 @@ def get_reaction_from_folder(folder_name):
         reaction.update({'reactants': [AB],
                          'products': products})
     else:
-        raise AssertionError, 'problem with folder {}'.format(foldername)
+        raise AssertionError('problem with folder {}'.format(folder_name))
+    
+    for key, mollist in reaction.iteritems():
+        for n, mol in enumerate(mollist):
+            if 'gas' not in mol and 'star' not in mol:
+                reaction[key][n] = mol + 'star'
+
+
+    for key, mollist in reaction.iteritems():
+        n_star = mollist.count('star')
+        if n_star > 1:
+            for n in range(n_star):
+                mollist.remove('star')
+            mollist.append(str(n_star) + 'star')
+    
+    #from tools import check_reaction
+    #check_reaction(reaction['reactants'], reaction['products'])
     return reaction
 
 
@@ -424,40 +487,57 @@ def get_reaction_atoms(reaction):
 
     import copy
     prefactors_TS = copy.deepcopy(prefactors)
-    # Empty slab balance
 
+    # Balance the number of slabs on each side of reaction
     n_star = {'reactants': 0,
               'products': 0}
 
     for key, statelist in states.iteritems():
-        for s in statelist:
+        for j, s in enumerate(statelist):
             if s == 'star':
-                n_star[key] += 1
+                n_star[key] += prefactors[key][j]
 
     n_r = n_star['reactants']
     n_p = n_star['products']
 
     diff = n_p - n_r
+    if abs(diff) > 0:
+        if diff > 0:  # add empty slabs to left-hand side
+            n_r += diff 
+            key = 'reactants'
+        else:  # add to right-hand side
+            diff *= -1  # diff should be positive
+            n_p += diff
+            key = 'products'
+        
+        if '' not in reaction_atoms[key]:
+            reaction[key].append('star')
+            prefactors[key].append(diff)
+            if key == 'reactants':
+                prefactors_TS[key].append(1)
+            states[key].append('star')
+            reaction_atoms[key].append('')
+        else:
+            index = states[key].index('star')
+            prefactors[key][index] += diff
+            # if key == 'reactants':
+            #     prefactors_TS[key]['star'] += 1  
 
-    if diff > 0:
-        n_r += diff
-        reaction['reactants'].append('star')
-        prefactors['reactants'].append(diff)
-        prefactors_TS['reactants'].append(1)
-        states['reactants'].append('star')
-        reaction_atoms['reactants'].append('')
-
-    elif diff < 0:
-        n_p += -diff
-        reaction['products'].append('star')
-        prefactors['products'].append(-diff)
-        states['products'].append('star')
-        reaction_atoms['products'].append('')
-
-    if n_r > 1:
-        if len([s for s in states['reactants'] if s =='star']) > 1:
-            prefactors_TS['reactants'][-1] = 0
-
+    if n_r > 1: # Balance slabs for transition state
+        count_empty = 0
+        if '' in reaction_atoms['reactants']:
+            index = reaction_atoms['reactants'].index('')
+            count_empty = prefactors_TS['reactants'][index]
+            prefactors_TS['reactants'][index] = -(n_r - count_empty -1)
+        else:
+            reaction_atoms['reactants'].append('')
+            prefactors['reactants'].append(0)
+            states['reactants'].append('star')
+            prefactors_TS['reactants'].append(-n_r + 1)            
+    else:
+        if '' in reaction_atoms['reactants']:
+            index = reaction_atoms['reactants'].index('')
+            prefactors_TS['reactants'][index] = 1
 
     return reaction_atoms, prefactors, prefactors_TS, states
 
@@ -468,7 +548,9 @@ def debug_assert(expression, message, debug=False):
             assert expression, message
         except AssertionError as e:
             print(e)
+            return False
     else:
         assert expression, message
-
+    
+    return True
 # def handle_gas_species():

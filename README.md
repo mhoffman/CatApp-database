@@ -1,4 +1,9 @@
 [![Build Status](https://travis-ci.org/mhoffman/CatalysisHubCLI.svg?branch=master)](https://travis-ci.org/mhoffman/CatalysisHubCLI)
+
+## Disclaimer
+
+This project is no longer maintained since it has merged into CatKit: https://github.com/SUNCAT-Center/CatKit
+
 ## Installation
 
 Install with pip using
